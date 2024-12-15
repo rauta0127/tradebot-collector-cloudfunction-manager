@@ -1,0 +1,50 @@
+name: Deploy to Cloud Functions
+
+on:
+  push:
+    branches:
+      - main  # Trigger the workflow on push to main branch
+      - develop  # Trigger the workflow on push to develop branch
+
+jobs:
+  deploy:
+    name: Deploy Cloud Function
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Determine Function Name or Exit
+      id: set-function-name
+      run: |
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          echo "FUNCTION_DEPLOY_NAME=${{ vars.FUNCTION_NAME }}" >> $GITHUB_ENV
+        elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+          echo "FUNCTION_DEPLOY_NAME=${{ vars.FUNCTION_NAME }}_dev" >> $GITHUB_ENV
+        else
+          echo "Branch not supported. Exiting..."
+          exit 0
+        fi
+
+    - name: Authenticate with Google Cloud
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.SERVICE_ACCOUNT_KEY }}
+
+    - name: Display authentication info
+      run: |
+        gcloud auth list
+        gcloud config list
+
+    - name: Deploy Cloud Function
+      id: deploy
+      uses: google-github-actions/deploy-cloud-functions@v3
+      with:
+        name: ${{ env.FUNCTION_DEPLOY_NAME }}
+        entry_point: ${{ vars.FUNCTION_ENTRY_POINT }}
+        runtime: ${{ vars.FUNCTION_RUNTIME }}
+        service_timeout: 120
+        max_instance_count: ${{ vars.FUNCTION_MAX_INSTANCES || 1 }}
+        region: ${{ vars.FUNCTION_REGION }}
